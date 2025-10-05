@@ -63,71 +63,74 @@
       </div>
       <div class="time" id="time"></div>
     </div>
-    <script>
-      // Replace this URL with the published CSV link of your Google Sheet
-      const CSV_URL =
-        "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+  // Your published CSV link:
+  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
 
-      function parseRow(row) {
-        // Split on comma, respecting quoted fields
-        const result = [];
-        let current = "";
-        let inQuotes = false;
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === "," && !inQuotes) {
-            result.push(current);
-            current = "";
-          } else {
-            current += char;
-          }
-        }
-        result.push(current);
-        return result;
+  function findKey(obj, names) {
+    // case-insensitive lookup for any of the provided names
+    const keys = Object.keys(obj);
+    for (const n of names) {
+      const k = keys.find(k => k.toLowerCase().trim() === n.toLowerCase().trim());
+      if (k) return k;
+    }
+    return null;
+  }
+
+  function safeFmt(val) {
+    if (val == null) return "";
+    // show line breaks from the sheet nicely
+    return String(val).replace(/\r\n|\r|\n/g, " \n");
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch(CSV_URL, { cache: "no-store" });
+      const text = await res.text();
+
+      // Proper CSV parsing (handles quotes, commas, newlines in cells)
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      const rows = parsed.data;
+      if (!rows || rows.length === 0) return;
+
+      // Take the latest (last) row
+      const last = rows[rows.length - 1];
+
+      // Try common header names; adjust if yours differ
+      const promptKey = findKey(last, ["Prompt", "Your Prompt", "Question", "Input"]);
+      const responseKey = findKey(last, ["Response", "Answer", "Output"]);
+      const toneKey = findKey(last, ["Tone", "Style"]);
+
+      const prompt = promptKey ? last[promptKey] : "";
+      const response = responseKey ? last[responseKey] : "";
+      const tone = toneKey ? last[toneKey] : "";
+
+      // Update UI
+      document.getElementById("prompt").textContent = safeFmt(prompt);
+      document.getElementById("response").textContent = safeFmt(response);
+      document.getElementById("tone").textContent = tone ? `Tone: ${tone}` : "";
+
+      // Timestamp if present
+      const tsKey = findKey(last, ["Timestamp", "Time", "Submitted At"]);
+      if (tsKey && last[tsKey]) {
+        const d = new Date(last[tsKey]);
+        document.getElementById("time").textContent = "Updated: " + (isNaN(d) ? last[tsKey] : d.toLocaleString());
+      } else {
+        document.getElementById("time").textContent = "";
       }
+    } catch (e) {
+      console.error(e);
+      document.getElementById("prompt").textContent = "Error fetching data";
+      document.getElementById("response").textContent = "";
+      document.getElementById("tone").textContent = "";
+      document.getElementById("time").textContent = "";
+    }
+  }
 
-      async function refresh() {
-        try {
-          const response = await fetch(CSV_URL, {
-            cache: "no-store",
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to fetch CSV: ${response.statusText}`);
-          }
-          const csvText = await response.text();
-          const rows = csvText.trim().split(/\r?\n/);
-          if (rows.length === 0) return;
-          const lastRow = rows[rows.length - 1];
-          const data = parseRow(lastRow);
-          const [timestamp, prompt, tone, resp] = data;
+  refresh();
+  setInterval(refresh, 5000);
+</script>
 
-          document.getElementById("prompt").textContent = prompt || "—";
-          document.getElementById("tone").textContent = tone
-            ? `Tone: ${tone}`
-            : "";
-          document.getElementById("response").textContent = resp || "—";
-
-          if (timestamp) {
-            const date = new Date(timestamp);
-            document.getElementById("time").textContent =
-              "Updated: " + date.toLocaleString();
-          } else {
-            document.getElementById("time").textContent = "";
-          }
-        } catch (err) {
-          console.error(err);
-          document.getElementById("prompt").textContent = "Error fetching data";
-          document.getElementById("tone").textContent = "";
-          document.getElementById("response").textContent = err.message;
-          document.getElementById("time").textContent = "";
-        }
-      }
-
-      // Initial call and refresh every 5 seconds
-      refresh();
-      setInterval(refresh, 5000);
-    </script>
   </body>
 </html>
