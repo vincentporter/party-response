@@ -6,88 +6,81 @@
     <title>Party Prompts & Responses</title>
     <style>
       :root {
-        --bg: #0b0b0b;
-        --card: rgba(20, 20, 20, 0.85);
+        --orange: #ff8613;
+        --dark: #1a1a1a;
+        --card-bg: rgba(20, 20, 20, 0.85);
+        --text-light: #f5f5f5;
         --muted: #d3d3d3;
-        --ring: #2dd4bf;
-        --text: #ffffff;
+        --highlight: #ffb347;
       }
-
       * { box-sizing: border-box; }
       html, body { height: 100%; margin: 0; padding: 0; }
 
-      /* === BACKGROUND IMAGE + ANIMATED OVERLAY === */
       body {
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        color: var(--text-light);
         display: flex;
         align-items: stretch;
         justify-content: center;
-        overflow: hidden;
         position: relative;
+        overflow: hidden;
+        background: linear-gradient(to bottom, var(--orange) 0%, var(--dark) 70%);
       }
 
+      /* Haunted-house + bats via SVG overlay */
       body::before {
         content: "";
         position: fixed;
         inset: 0;
-        background: url("https://i.imgur.com/txc2n2N.jpeg") no-repeat center center fixed;
+        background: url("data:image/svg+xml;base64, \
+          PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI3MjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+ \
+          PHBhdGggZD0iTTAsNzIwIEg1MDBMMTAsNDgwaC0xMEwwLDcyMEwiIGZpbGw9IiMwMDAiIC8+ \
+          PHBhdGggZD0iTTQwMCw3MjAgSDcwMEwgNTUwLDM1MEg0MDBMNDAsNzIwIiBmaWxsPSIjMDAwIiAv+ \
+          PHBhdGggZD0iTTc0MCw3MjAgSDk0MEwgODA3LDMxMEg3NDBMODAsNzIwIiBmaWxsPSIjMDAwIiAv+ \
+          PHBhdGggZD0iTTIwMCwxNTAgQzIwMCwxMjAgMjYwLDEyMCAzMDAsMTUwIEMzNDAsMTgwIDI2MCwyMDAgMjAwLDE1MCIgZmlsbD0iIzAwMCIgLz4 \
+          PHBhdGggZD0iTTEwMCw1NzAgQzEwMCw1MjAgMTQwLDUyMCAxNzAsNTcwIiBmaWxsPSIjMDAwIiAv+ \
+          PHBhdGggZD0iTTUwMCw0MDBDNTAwLDM1MCA1NTAzMCAzNTAgNjAwLDQwMCIgZmlsbD0iIzAwMCIgLz4 \
+          PC9zdmc+") no-repeat center bottom;
         background-size: cover;
-        z-index: -2;
+        opacity: 0.4;
+        pointer-events: none;
+        z-index: 0;
       }
 
-      /* Animated color overlay */
-      body::after {
-        content: "";
-        position: fixed;
-        inset: 0;
-        background: linear-gradient(45deg, rgba(45, 212, 191, 0.15), rgba(255, 0, 120, 0.2));
-        mix-blend-mode: overlay;
-        animation: colorShift 15s ease-in-out infinite alternate;
-        z-index: -1;
-      }
-
-      @keyframes colorShift {
-        0% { background: linear-gradient(45deg, rgba(45, 212, 191, 0.15), rgba(255, 0, 120, 0.2)); }
-        50% { background: linear-gradient(135deg, rgba(255, 255, 0, 0.15), rgba(0, 255, 255, 0.2)); }
-        100% { background: linear-gradient(225deg, rgba(255, 0, 120, 0.2), rgba(45, 212, 191, 0.15)); }
-      }
-
-      /* === CARD & TEXT STYLING === */
       .wrap {
         width: 100%;
-        max-width: 940px;
+        max-width: 900px;
         padding: 16px;
         display: flex;
         flex-direction: column;
         gap: 16px;
+        z-index: 1;
       }
 
       .header {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        align-items: center;
       }
 
       .title {
-        font-weight: 700;
-        font-size: 1.25rem;
-        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+        font-size: 1.4rem;
+        font-weight: bold;
+        text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
       }
 
       .meta {
-        font-size: .9rem;
+        font-size: 0.9rem;
         color: var(--muted);
       }
 
       .list {
-        background: rgba(0, 0, 0, 0.45);
+        background: var(--card-bg);
         border-radius: 16px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 10px 40px rgba(0,0,0,.6);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         padding: 12px;
-        height: calc(100vh - 110px);
+        height: calc(100vh - 120px);
         overflow: auto;
       }
 
@@ -95,25 +88,50 @@
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 12px;
         padding: 14px 16px;
-        background: var(--card);
         margin: 10px 6px;
-        transition: all 0.5s ease;
+        background: var(--card-bg);
+        transition: transform 0.3s, box-shadow 0.3s;
       }
 
       .item.featured {
-        outline: 2px solid var(--ring);
-        box-shadow: 0 0 15px rgba(45,212,191,0.4), 0 12px 40px rgba(0,0,0,.6);
+        outline: 2px solid var(--highlight);
+        box-shadow: 0 0 15px rgba(255, 180, 71, 0.8), 0 12px 40px rgba(0,0,0,0.7);
         transform: scale(1.05);
       }
 
-      .item.featured .prompt { font-size: 1.25rem; }
-      .item.featured .response { font-size: 1.4rem; }
+      .item.featured .prompt { font-size: 1.3rem; }
+      .item.featured .response { font-size: 1.5rem; }
 
-      .label { font-size: .85rem; color: var(--muted); }
-      .prompt { font-weight: 700; white-space: pre-wrap; word-break: break-word; }
-      .response { font-size: 1.05rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
-      .tone, .time { font-size: .8rem; color: var(--muted); margin-top: 6px; }
-      .divider { height: 1px; border: none; background: #444; margin: 8px 0; }
+      .label {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .prompt {
+        font-weight: 700;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .response {
+        font-size: 1.05rem;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .tone, .time {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+
+      .divider {
+        height: 1px;
+        border: none;
+        background: #333;
+        margin: 8px 0;
+      }
     </style>
   </head>
 
@@ -146,7 +164,6 @@
         }
         return null;
       }
-
       function safe(v) { return v ? String(v).replace(/\r\n|\r|\n/g, "\n") : ""; }
       function fmtTime(v) {
         if (!v) return "";
@@ -191,63 +208,16 @@
           const text = await res.text();
           const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
           const rows = parsed.data || [];
-          if (!rows.length) return;
+          if (!rows.length) {
+            listEl.innerHTML = "<div class='item'>No entries yet</div>";
+            status.textContent = "Updated: —";
+            return;
+          }
 
           rows.reverse();
           const fp = fingerprint(rows);
           if (fp !== lastFingerprint) {
             lastFingerprint = fp;
             listEl.innerHTML = "";
-
-            const fields = parsed.meta?.fields || Object.keys(rows[0]);
-
-            rows.forEach(r => {
-              const pKey  = findKey(r, PROMPT_NAMES);
-              const rKey  = findKey(r, RESPONSE_NAMES);
-              const toneK = findKey(r, TONE_NAMES);
-              const timeK = findKey(r, TIME_NAMES);
-
-              const nonEmpty = (fields || Object.keys(r)).filter(k => {
-                const val = r[k];
-                if (val == null || String(val).trim() === "") return false;
-                if (isNameIn(k, TIME_NAMES)) return false;
-                return true;
-              });
-
-              let prompt = (pKey && r[pKey]) ? r[pKey] : (nonEmpty[0] ? r[nonEmpty[0]] : "");
-              let response = (rKey && r[rKey]) ? r[rKey] : (nonEmpty.length ? r[nonEmpty[nonEmpty.length - 1]] : "");
-              const tone = (toneK && r[toneK]) ? r[toneK] : "";
-              const time = (timeK && r[timeK]) ? r[timeK] : "";
-
-              if (!(String(prompt).trim() || String(response).trim())) return;
-              listEl.appendChild(makeItem({ prompt, response, tone, time: fmtTime(time) }));
-            });
-
-            featuredIndex = 0; // reset to newest if sheet changed
-            applyFeatured();
-          } else {
-            applyFeatured();
-          }
-
-          status.textContent = "Updated: " + new Date().toLocaleTimeString();
-        } catch (e) {
-          console.error(e);
-          status.textContent = "Error fetching sheet";
-        }
-      }
-
-      refresh();
-      setInterval(refresh, 15000);
-
-      // Rotate highlight every 20 seconds
-      setInterval(() => {
-        const items = document.querySelectorAll(".item");
-        if (!items.length) return;
-        featuredIndex = (featuredIndex + 1) % items.length;
-        applyFeatured();
-        items[featuredIndex].scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 20000);
-    </script>
-  </body>
-</html>
+            const fields = parsed.meta?.fields
 
