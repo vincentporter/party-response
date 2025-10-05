@@ -37,14 +37,8 @@
         justify-content: space-between;
         gap: 12px;
       }
-      .title {
-        font-weight: 700;
-        font-size: 1.25rem;
-      }
-      .meta {
-        font-size: .9rem;
-        color: var(--muted);
-      }
+      .title { font-weight: 700; font-size: 1.25rem; }
+      .meta { font-size: .9rem; color: var(--muted); }
       .list {
         background: linear-gradient(180deg, #161616, #0f0f0f);
         border: 1px solid #1f1f1f;
@@ -85,11 +79,20 @@
       <div class="list" id="list"></div>
     </div>
 
+    <!-- CSV parser -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
+      // Your published Google Sheet CSV
       const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
 
+      // Rotate featured card every 20s
       let featuredIndex = 0;
+
+      // Candidate header names
+      const PROMPT_NAMES   = ["Prompt","Your Prompt","Question","Input"];
+      const RESPONSE_NAMES = ["Response","Answer","Output","AI Response","ChatGPT Response","OpenAI Response"];
+      const TONE_NAMES     = ["Tone","Style"];
+      const TIME_NAMES     = ["Timestamp","Time","Submitted At","Created","Created At","Date"];
 
       function findKey(obj, names) {
         const keys = Object.keys(obj);
@@ -105,6 +108,8 @@
         const d = new Date(v);
         return isNaN(d) ? String(v) : d.toLocaleString();
       }
+      function isNameIn(k, arr) { return arr.some(n => n.toLowerCase().trim() === String(k).toLowerCase().trim()); }
+
       function makeItem({prompt, response, tone, time}) {
         const div = document.createElement("div");
         div.className = "item";
@@ -130,45 +135,91 @@
         try {
           status.textContent = "Loading…";
           const res = await fetch(CSV_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
           const text = await res.text();
+
           const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
           let rows = parsed.data || [];
-          if (!rows.length) { listEl.innerHTML = "<div>No entries yet</div>"; return; }
+          if (!rows.length) { listEl.innerHTML = "<div class='item'>No entries yet</div>"; return; }
 
-          rows.reverse(); // newest first
+          // Render newest first
+          rows.reverse();
           listEl.innerHTML = "";
+          let rendered = 0;
+
+          const fields = parsed.meta?.fields || Object.keys(rows[0]);
 
           rows.forEach(r => {
-            const promptKey = findKey(r, ["Prompt","Question","Input"]);
-            const responseKey = findKey(r, ["Response","Answer","Output"]);
-            const toneKey = findKey(r, ["Tone","Style"]);
-            const tsKey = findKey(r, ["Timestamp","Time"]);
-            const prompt = promptKey ? r[promptKey] : "";
-            const response = responseKey ? r[responseKey] : "";
-            const tone = toneKey ? r[toneKey] : "";
-            const time = tsKey ? r[tsKey] : "";
-            if (!(prompt || response)) return;
-            listEl.appendChild(makeItem({prompt, response, tone, time: fmtTime(time)}));
+            // Primary header detection
+            const pKey = findKey(r, PROMPT_NAMES);
+            const rKey = findKey(r, RESPONSE_NAMES);
+            const tKey = findKey(r, TONE_NAMES);
+            const tsKey = findKey(r, TIME_NAMES);
+
+            // Fallbacks if headers aren't exact:
+            // Build a list of non-empty fields for this row, excluding obvious timestamp/tone
+            const nonEmpty = (fields || Object.keys(r)).filter(k => {
+              const val = r[k];
+              if (val == null || String(val).trim() === "") return false;
+              if (isNameIn(k, TIME_NAMES)) return false;
+              return true;
+            });
+
+            // Choose prompt:
+            let prompt = (pKey && r[pKey]) ? r[pKey] : "";
+            if (!prompt) {
+              // If first non-empty is timestamp, try next; otherwise take first meaningful
+              prompt = nonEmpty[0] ? r[nonEmpty[0]] : "";
+              if (isNameIn(nonEmpty[0], TIME_NAMES) && nonEmpty[1]) prompt = r[nonEmpty[1]];
+            }
+
+            // Choose response:
+            let response = (rKey && r[rKey]) ? r[rKey] : "";
+            if (!response) {
+              // Take the last non-empty that's not the same field as prompt and not tone/timestamp
+              const candidates = nonEmpty.filter(k => k !== pKey && k !== tKey && !isNameIn(k, TIME_NAMES));
+              response = candidates.length ? r[candidates[candidates.length - 1]] : "";
+            }
+
+            const tone = (tKey && r[tKey]) ? r[tKey] : "";
+            const time = (tsKey && r[tsKey]) ? r[tsKey] : "";
+
+            // Skip truly empty rows
+            if (!(String(prompt).trim() || String(response).trim())) return;
+
+            listEl.appendChild(makeItem({ prompt, response, tone, time: fmtTime(time) }));
+            rendered++;
           });
 
-          featuredIndex = 0; // reset to newest after refresh
+          if (!rendered) {
+            listEl.innerHTML = "<div class='item'>No displayable rows</div>";
+          }
+
+          // After re-render, reset highlight to newest
+          featuredIndex = 0;
           applyFeatured();
+
           status.textContent = "Updated: " + new Date().toLocaleTimeString();
         } catch (e) {
           console.error(e);
           status.textContent = "Error";
+          document.getElementById("list").innerHTML =
+            "<div class='item'>Error fetching or parsing the CSV. Check that the sheet is published as CSV and accessible.</div>";
         }
       }
 
+      // Initial load + refresh every 10s for new data
       refresh();
-      setInterval(refresh, 10000); // data refresh every 10s
+      setInterval(refresh, 10000);
+
+      // Rotate featured every 20s
       setInterval(() => {
         const items = document.querySelectorAll(".item");
         if (!items.length) return;
         featuredIndex = (featuredIndex + 1) % items.length;
         applyFeatured();
         items[featuredIndex].scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 20000); // rotate featured every 20s
+      }, 20000);
     </script>
   </body>
 </html>
