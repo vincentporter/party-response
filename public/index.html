@@ -40,7 +40,6 @@
       .title {
         font-weight: 700;
         font-size: 1.25rem;
-        letter-spacing: .2px;
       }
       .meta {
         font-size: .9rem;
@@ -61,72 +60,36 @@
         padding: 14px 16px;
         background: var(--card);
         margin: 10px 6px;
+        transition: all 0.3s ease;
       }
-      .row {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 6px;
+      .item.featured {
+        outline: 2px solid var(--ring);
+        box-shadow: 0 0 0 4px rgba(45,212,191,0.15), 0 12px 40px rgba(0,0,0,.6);
       }
-      .label {
-        font-size: .85rem;
-        color: var(--muted);
-        letter-spacing: .2px;
-      }
-      .prompt {
-        font-weight: 700;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      .response {
-        font-size: 1.05rem;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      .tone, .time {
-        font-size: .8rem;
-        color: var(--muted);
-      }
-      .divider {
-        height: 1px;
-        border: none;
-        background: #222;
-        margin: 8px 0 6px;
-      }
-      .pill {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 999px;
-        border: 1px solid #2b2b2b;
-        font-size: .75rem;
-        color: var(--muted);
-        margin-left: 8px;
-      }
+      .item.featured .prompt { font-size: 1.25rem; }
+      .item.featured .response { font-size: 1.4rem; }
+
+      .label { font-size: .85rem; color: var(--muted); }
+      .prompt { font-weight: 700; white-space: pre-wrap; word-break: break-word; }
+      .response { font-size: 1.05rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+      .tone, .time { font-size: .8rem; color: var(--muted); margin-top: 6px; }
+      .divider { height: 1px; border: none; background: #222; margin: 8px 0; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="header">
-        <div class="title">
-          Party Prompts & Responses
-          <span class="pill" id="count">0 items</span>
-        </div>
+        <div class="title">Party Prompts & Responses</div>
         <div class="meta" id="status">Loading…</div>
       </div>
-
-      <div class="list" id="list">
-        <!-- Items will render here -->
-      </div>
+      <div class="list" id="list"></div>
     </div>
 
-    <!-- CSV parser -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
-      // Published Google Sheets CSV (yours)
       const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
 
-      // If you ever want to cap how many to show (e.g., last 100), set a number; else null for all
-      const SHOW_LAST_N = null; // e.g., 100
+      let featuredIndex = 0;
 
       function findKey(obj, names) {
         const keys = Object.keys(obj);
@@ -136,33 +99,29 @@
         }
         return null;
       }
-
-      function safe(val) {
-        if (val == null) return "";
-        return String(val).replace(/\r\n|\r|\n/g, "\n");
-      }
-
+      function safe(v) { return v ? String(v).replace(/\r\n|\r|\n/g, "\n") : ""; }
       function fmtTime(v) {
         if (!v) return "";
         const d = new Date(v);
         return isNaN(d) ? String(v) : d.toLocaleString();
       }
-
       function makeItem({prompt, response, tone, time}) {
         const div = document.createElement("div");
         div.className = "item";
         div.innerHTML = `
-          <div class="row">
-            <div class="label">Prompt</div>
-            <div class="prompt">${prompt ? safe(prompt) : "—"}</div>
-            <hr class="divider" />
-            <div class="label">Response</div>
-            <div class="response">${response ? safe(response) : "—"}</div>
-            ${tone ? `<div class="tone">Tone: ${safe(tone)}</div>` : ""}
-            ${time ? `<div class="time">${safe(time)}</div>` : ""}
-          </div>
+          <div class="label">Prompt</div>
+          <div class="prompt">${safe(prompt)}</div>
+          <hr class="divider" />
+          <div class="label">Response</div>
+          <div class="response">${safe(response)}</div>
+          ${tone ? `<div class="tone">Tone: ${safe(tone)}</div>` : ""}
+          ${time ? `<div class="time">${safe(time)}</div>` : ""}
         `;
         return div;
+      }
+      function applyFeatured() {
+        const items = document.querySelectorAll(".item");
+        items.forEach((el, i) => el.classList.toggle("featured", i === featuredIndex));
       }
 
       async function refresh() {
@@ -171,65 +130,45 @@
         try {
           status.textContent = "Loading…";
           const res = await fetch(CSV_URL, { cache: "no-store" });
-          if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
           const text = await res.text();
-
           const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
           let rows = parsed.data || [];
-          if (rows.length === 0) {
-            listEl.innerHTML = "<div class='item'>No entries yet.</div>";
-            document.getElementById("count").textContent = "0 items";
-            status.textContent = "Updated: —";
-            return;
-          }
+          if (!rows.length) { listEl.innerHTML = "<div>No entries yet</div>"; return; }
 
-          // Try to identify headers; use fallbacks otherwise
-          const fields = parsed.meta?.fields || Object.keys(rows[0]);
-
-          // Optionally limit and reverse (newest first)
-          let ordered = rows.slice();
-          if (SHOW_LAST_N && SHOW_LAST_N > 0) {
-            ordered = ordered.slice(-SHOW_LAST_N);
-          }
-          ordered.reverse();
-
-          // Clear and render
+          rows.reverse(); // newest first
           listEl.innerHTML = "";
-          let rendered = 0;
 
-          ordered.forEach(r => {
-            const promptKey   = findKey(r, ["Prompt", "Your Prompt", "Question", "Input"]);
-            const responseKey = findKey(r, ["Response", "Answer", "Output", "AI Response", "ChatGPT Response"]);
-            const toneKey     = findKey(r, ["Tone", "Style"]);
-            const tsKey       = findKey(r, ["Timestamp", "Time", "Submitted At", "Created"]);
-
-            // Fallbacks if headers aren't exact
-            const nonEmpty = (fields || Object.keys(r)).filter(k => r[k] && String(r[k]).trim() !== "");
-            const prompt   = promptKey && r[promptKey] ? r[promptKey] : (nonEmpty[1] ? r[nonEmpty[1]] : r[nonEmpty[0]] || "");
-            const response = responseKey && r[responseKey] ? r[responseKey] : (nonEmpty.length ? r[nonEmpty[nonEmpty.length - 1]] : "");
-            const tone     = toneKey ? r[toneKey] : "";
-            const time     = tsKey ? r[tsKey] : "";
-
-            // Skip empty rows (no prompt & no response)
-            if (!(String(prompt).trim() || String(response).trim())) return;
-
-            listEl.appendChild(makeItem({ prompt, response, tone, time: fmtTime(time) }));
-            rendered++;
+          rows.forEach(r => {
+            const promptKey = findKey(r, ["Prompt","Question","Input"]);
+            const responseKey = findKey(r, ["Response","Answer","Output"]);
+            const toneKey = findKey(r, ["Tone","Style"]);
+            const tsKey = findKey(r, ["Timestamp","Time"]);
+            const prompt = promptKey ? r[promptKey] : "";
+            const response = responseKey ? r[responseKey] : "";
+            const tone = toneKey ? r[toneKey] : "";
+            const time = tsKey ? r[tsKey] : "";
+            if (!(prompt || response)) return;
+            listEl.appendChild(makeItem({prompt, response, tone, time: fmtTime(time)}));
           });
 
-          document.getElementById("count").textContent = `${rendered} item${rendered === 1 ? "" : "s"}`;
+          featuredIndex = 0; // reset to newest after refresh
+          applyFeatured();
           status.textContent = "Updated: " + new Date().toLocaleTimeString();
         } catch (e) {
           console.error(e);
-          document.getElementById("status").textContent = "Error";
-          document.getElementById("list").innerHTML =
-            "<div class='item'>Error fetching or parsing the CSV. Check that the sheet is published as CSV and accessible.</div>";
+          status.textContent = "Error";
         }
       }
 
-      // Initial load + refresh
       refresh();
-      setInterval(refresh, 5000);
+      setInterval(refresh, 10000); // data refresh every 10s
+      setInterval(() => {
+        const items = document.querySelectorAll(".item");
+        if (!items.length) return;
+        featuredIndex = (featuredIndex + 1) % items.length;
+        applyFeatured();
+        items[featuredIndex].scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 20000); // rotate featured every 20s
     </script>
   </body>
 </html>
