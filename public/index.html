@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prompt → Response</title>
+<style>
+  body{margin:0;font-family:system-ui,Arial;background:#0b0b0b;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh}
+  .card{max-width:800px;width:92%;padding:24px;border-radius:16px;background:linear-gradient(180deg,#1a1a1a,#0e0e0e);box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .prompt{opacity:.85;font-size:1rem}
+  .response{font-size:1.8rem;line-height:1.25;margin-top:14px}
+  .time{font-size:.8rem;color:#aaa;margin-top:10px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="prompt" id="prompt">Waiting for prompts…</div>
+    <div class="response" id="response">Scan the QR, submit your prompt, and watch the magic.</div>
+    <div class="time" id="time"></div>
+  </div>
+
+<script>
+let last = "";
+async function fetchLatest(){
+  try{
+    const res = await fetch('/latest');
+    const json = await res.json();
+    if(json && json.response){
+      const combined = (json.prompt||"") + "|" + (json.response||"");
+      if(combined !== last){
+        document.getElementById('prompt').textContent = json.prompt ? "Prompt: " + json.prompt : "Prompt: (none)";
+        document.getElementById('response').textContent = json.response;
+        const t = json.timestamp ? new Date(json.timestamp) : new Date();
+        document.getElementById('time').textContent = "Updated: " + t.toLocaleTimeString();
+        last = combined;
+      }
+    }
+  }catch(e){}
+}
+fetchLatest();
+setInterval(fetchLatest, 3000);
+</script>
+</body>
+</html>
