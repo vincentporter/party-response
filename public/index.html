@@ -7,41 +7,30 @@
     <style>
       :root {
         --orange: #ff7518;
-        --black: #000;
-        --card-bg: rgba(25, 25, 25, 0.9);
+        --card: rgba(20,20,20,0.9);
         --muted: #f5b97a;
-        --text: #fff5e1;
+        --text: #fff8e6;
         --highlight: #ffb347;
       }
-
       * { box-sizing: border-box; }
       html, body { height: 100%; margin: 0; padding: 0; }
 
-      /* === HALLOWEEN BAT BACKGROUND === */
+      /* === ORANGE BACKGROUND + INLINE-SVG BAT PATTERN (no external images) === */
       body {
-        background: var(--orange);
-        background-image: radial-gradient(rgba(0,0,0,0.35) 1px, transparent 1px),
-                          url("https://i.imgur.com/xZxfl7C.png");
-        background-size: 20px 20px, 200px auto;
-        background-repeat: repeat, repeat;
-        color: var(--text);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--text);
         display: flex;
         align-items: stretch;
         justify-content: center;
         overflow: hidden;
         position: relative;
-      }
-
-      /* Add faint bats overlay if image fails */
-      body::after {
-        content: "🦇 🦇 🦇";
-        position: fixed;
-        bottom: 10px;
-        right: 20px;
-        font-size: 2rem;
-        opacity: 0.1;
-        pointer-events: none;
+        background:
+          /* subtle dot texture */
+          radial-gradient(rgba(0,0,0,0.25) 1px, transparent 1px) 0 0/22px 22px,
+          /* bat tile */
+          url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'><g fill='%23000' fill-opacity='0.22'><path d='M60 10 l-16 11 16 6 16-6z'/><path d='M36 22 l-26 11 26 5z'/><path d='M84 22 l26 11 -26 5z'/></g></svg>") 0 0/180px 90px,
+          /* orange base */
+          var(--orange);
       }
 
       .wrap {
@@ -58,23 +47,17 @@
         align-items: center;
         justify-content: space-between;
       }
-
       .title {
-        font-weight: 700;
-        font-size: 1.4rem;
-        color: var(--text);
-        text-shadow: 0 0 8px rgba(0,0,0,0.8);
+        font-weight: 800;
+        font-size: 1.35rem;
+        text-shadow: 0 2px 8px rgba(0,0,0,0.45);
       }
-
-      .meta {
-        font-size: 0.9rem;
-        color: var(--muted);
-      }
+      .meta { font-size: 0.9rem; color: var(--muted); }
 
       .list {
-        background: var(--card-bg);
+        background: var(--card);
         border-radius: 16px;
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(8px);
         box-shadow: 0 10px 40px rgba(0,0,0,.6);
         padding: 12px;
         height: calc(100vh - 120px);
@@ -82,23 +65,24 @@
       }
 
       .item {
-        border: 1px solid rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.12);
         border-radius: 12px;
         padding: 14px 16px;
-        background: var(--card-bg);
+        background: var(--card);
         margin: 10px 6px;
         transition: transform 0.3s, box-shadow 0.3s;
       }
-
       .item.featured {
         outline: 2px solid var(--highlight);
-        box-shadow: 0 0 15px rgba(255, 180, 71, 0.8), 0 12px 40px rgba(0,0,0,0.7);
+        box-shadow: 0 0 15px rgba(255,180,71,0.7), 0 12px 40px rgba(0,0,0,0.7);
         transform: scale(1.05);
       }
+      .item.featured .prompt { font-size: 1.25rem; }
+      .item.featured .response { font-size: 1.4rem; }
 
       .label { font-size: 0.85rem; color: var(--muted); }
-      .prompt { font-weight: 700; font-size: 1.1rem; white-space: pre-wrap; word-break: break-word; color: #fffbe6; }
-      .response { font-size: 1.2rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: #ffeac1; }
+      .prompt { font-weight: 800; font-size: 1.05rem; white-space: pre-wrap; word-break: break-word; color: #fffbe8; }
+      .response { font-size: 1.15rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: #ffefd2; }
       .tone, .time { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       .divider { height: 1px; border: none; background: #444; margin: 8px 0; }
     </style>
@@ -113,14 +97,17 @@
       <div class="list" id="list"></div>
     </div>
 
+    <!-- CSV parser -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
       const CSV_URL =
         "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
 
+      // Rotation + change detection
       let featuredIndex = 0;
       let lastFingerprint = null;
 
+      // Header candidates (case-insensitive)
       const PROMPT_NAMES   = ["Prompt","Your Prompt","Question","Input"];
       const RESPONSE_NAMES = ["Response","Answer","Output","AI Response","ChatGPT Response","OpenAI Response"];
       const TONE_NAMES     = ["Tone","Style"];
@@ -134,13 +121,13 @@
         }
         return null;
       }
-
       function safe(v) { return v ? String(v).replace(/\r\n|\r|\n/g, "\n") : ""; }
       function fmtTime(v) {
         if (!v) return "";
         const d = new Date(v);
         return isNaN(d) ? String(v) : d.toLocaleString();
       }
+      function isNameIn(k, arr) { return arr.some(n => n.toLowerCase().trim() === String(k).toLowerCase().trim()); }
 
       function makeItem({prompt, response, tone, time}) {
         const div = document.createElement("div");
@@ -164,9 +151,11 @@
         items.forEach((el, i) => el.classList.toggle("featured", i === featuredIndex));
       }
 
-      function fingerprint(rows) {
+      // Robust fingerprint: length + ordered values of newest row
+      function fingerprint(rows, fields) {
         const newest = rows[0] || {};
-        return JSON.stringify([rows.length, newest["Prompt"], newest["Response"]]);
+        const ordered = (fields || Object.keys(newest)).map(f => newest[f] ?? "").join("|");
+        return rows.length + "|" + ordered;
       }
 
       async function refresh() {
@@ -175,6 +164,7 @@
 
         try {
           const res = await fetch(CSV_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
           const text = await res.text();
           const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
           const rows = parsed.data || [];
@@ -184,36 +174,70 @@
             return;
           }
 
+          // newest first
           rows.reverse();
-          const fp = fingerprint(rows);
-          if (fp !== lastFingerprint) {
+          const fields = parsed.meta?.fields || Object.keys(rows[0]);
+
+          // only re-render on actual data change
+          const fp = fingerprint(rows, fields);
+          const changed = (fp !== lastFingerprint);
+
+          if (changed) {
             lastFingerprint = fp;
             listEl.innerHTML = "";
+
             rows.forEach(r => {
-              const pKey = findKey(r, PROMPT_NAMES);
-              const rKey = findKey(r, RESPONSE_NAMES);
-              const tKey = findKey(r, TONE_NAMES);
+              const pKey  = findKey(r, PROMPT_NAMES);
+              const rKey  = findKey(r, RESPONSE_NAMES);
+              const toneK = findKey(r, TONE_NAMES);
               const timeK = findKey(r, TIME_NAMES);
-              const prompt = pKey ? r[pKey] : "";
-              const response = rKey ? r[rKey] : "";
-              const tone = tKey ? r[tKey] : "";
-              const time = timeK ? r[timeK] : "";
+
+              // Build non-empty list excluding timestamp-ish fields
+              const nonEmpty = (fields || Object.keys(r)).filter(k => {
+                const val = r[k];
+                if (val == null || String(val).trim() === "") return false;
+                if (isNameIn(k, TIME_NAMES)) return false;
+                return true;
+              });
+
+              // Choose prompt
+              let prompt = (pKey && r[pKey]) ? r[pKey] : (nonEmpty[0] ? r[nonEmpty[0]] : "");
+              // Choose response (prefer explicit; else last meaningful column not equal to prompt field)
+              let response = (rKey && r[rKey]) ? r[rKey] : "";
+              if (!response) {
+                const candidates = nonEmpty.filter(k => !(pKey && k === pKey) && !(toneK && k === toneK));
+                response = candidates.length ? r[candidates[candidates.length - 1]] : "";
+              }
+
+              const tone = (toneK && r[toneK]) ? r[toneK] : "";
+              const time = (timeK && r[timeK]) ? r[timeK] : "";
+
               if (!(String(prompt).trim() || String(response).trim())) return;
               listEl.appendChild(makeItem({ prompt, response, tone, time: fmtTime(time) }));
             });
+
+            // reset featured to newest ONLY when data changed
             featuredIndex = 0;
             applyFeatured();
-          } else applyFeatured();
+          } else {
+            // keep current featured when no data change
+            applyFeatured();
+          }
 
           status.textContent = "Updated: " + new Date().toLocaleTimeString();
         } catch (e) {
           console.error(e);
           status.textContent = "Error fetching sheet";
+          document.getElementById("list").innerHTML =
+            "<div class='item'>Could not fetch the CSV. Check that the sheet is published and accessible.</div>";
         }
       }
 
+      // initial + periodic refresh (every 15s)
       refresh();
       setInterval(refresh, 15000);
+
+      // rotate featured every 20s
       setInterval(() => {
         const items = document.querySelectorAll(".item");
         if (!items.length) return;
@@ -224,3 +248,4 @@
     </script>
   </body>
 </html>
+
