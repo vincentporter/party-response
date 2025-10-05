@@ -2,161 +2,232 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Live Party Responses</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Party Prompts & Responses</title>
     <style>
+      :root {
+        --bg: #0b0b0b;
+        --card: #111;
+        --muted: #9aa0a6;
+        --ring: #2dd4bf;
+        --text: #f5f5f5;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
-          sans-serif;
-        background: #0b0b0b;
-        color: #f5f5f5;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+      }
+      .wrap {
+        width: 100%;
+        max-width: 940px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        height: 100vh;
-        text-align: center;
+        justify-content: space-between;
+        gap: 12px;
       }
-
-      .card {
-        background: linear-gradient(180deg, #1a1a1a 0%, #0e0e0e 100%);
+      .title {
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: .2px;
+      }
+      .meta {
+        font-size: .9rem;
+        color: var(--muted);
+      }
+      .list {
+        background: linear-gradient(180deg, #161616, #0f0f0f);
+        border: 1px solid #1f1f1f;
         border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-        padding: 24px;
-        max-width: 800px;
-        width: 92%;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5);
+        padding: 12px;
+        height: calc(100vh - 110px);
+        overflow: auto;
       }
-
+      .item {
+        border: 1px solid #232323;
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: var(--card);
+        margin: 10px 6px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .label {
+        font-size: .85rem;
+        color: var(--muted);
+        letter-spacing: .2px;
+      }
       .prompt {
-        opacity: 0.85;
-        font-size: 1.2rem;
-        margin-bottom: 12px;
-        font-weight: bold;
+        font-weight: 700;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
-
       .response {
-        font-size: 1.6rem;
+        font-size: 1.05rem;
         line-height: 1.4;
-        margin-top: 8px;
-        word-wrap: break-word;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
-
-      .tone {
-        font-size: 0.9rem;
-        color: #999;
-        margin-top: 10px;
+      .tone, .time {
+        font-size: .8rem;
+        color: var(--muted);
       }
-
-      .time {
-        font-size: 0.8rem;
-        color: #777;
-        margin-top: 14px;
+      .divider {
+        height: 1px;
+        border: none;
+        background: #222;
+        margin: 8px 0 6px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid #2b2b2b;
+        font-size: .75rem;
+        color: var(--muted);
+        margin-left: 8px;
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <div class="prompt" id="prompt">Waiting for prompts…</div>
-      <div class="response" id="response">
-        Scan the QR, submit your prompt, and watch the magic.
+    <div class="wrap">
+      <div class="header">
+        <div class="title">
+          Party Prompts & Responses
+          <span class="pill" id="count">0 items</span>
+        </div>
+        <div class="meta" id="status">Loading…</div>
       </div>
-      <div class="tone" id="tone"></div>
-      <div class="time" id="time"></div>
+
+      <div class="list" id="list">
+        <!-- Items will render here -->
+      </div>
     </div>
 
-    <!-- PapaParse library to handle Google Sheet CSV -->
+    <!-- CSV parser -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
-      // Your published Google Sheet CSV link
-      const CSV_URL =
-        "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
+      // Published Google Sheets CSV (yours)
+      const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
+
+      // If you ever want to cap how many to show (e.g., last 100), set a number; else null for all
+      const SHOW_LAST_N = null; // e.g., 100
 
       function findKey(obj, names) {
         const keys = Object.keys(obj);
         for (const name of names) {
-          const match = keys.find(
-            (k) => k.toLowerCase().trim() === name.toLowerCase().trim()
-          );
+          const match = keys.find(k => k.toLowerCase().trim() === name.toLowerCase().trim());
           if (match) return match;
         }
         return null;
       }
 
-      function safeFmt(val) {
+      function safe(val) {
         if (val == null) return "";
         return String(val).replace(/\r\n|\r|\n/g, "\n");
       }
 
+      function fmtTime(v) {
+        if (!v) return "";
+        const d = new Date(v);
+        return isNaN(d) ? String(v) : d.toLocaleString();
+      }
+
+      function makeItem({prompt, response, tone, time}) {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <div class="row">
+            <div class="label">Prompt</div>
+            <div class="prompt">${prompt ? safe(prompt) : "—"}</div>
+            <hr class="divider" />
+            <div class="label">Response</div>
+            <div class="response">${response ? safe(response) : "—"}</div>
+            ${tone ? `<div class="tone">Tone: ${safe(tone)}</div>` : ""}
+            ${time ? `<div class="time">${safe(time)}</div>` : ""}
+          </div>
+        `;
+        return div;
+      }
+
       async function refresh() {
+        const status = document.getElementById("status");
+        const listEl = document.getElementById("list");
         try {
+          status.textContent = "Loading…";
           const res = await fetch(CSV_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
           const text = await res.text();
 
-          // Parse CSV
-          const parsed = Papa.parse(text, {
-            header: true,
-            skipEmptyLines: true,
-          });
-          const rows = parsed.data;
-          if (!rows || rows.length === 0) return;
-
-          // Latest row
-          const last = rows[rows.length - 1];
-
-          // Match headers
-          const promptKey = findKey(last, ["Prompt", "Your Prompt", "Question", "Input"]);
-          const responseKey = findKey(last, ["Response", "Answer", "Output", "AI Response", "ChatGPT Response"]);
-          const toneKey = findKey(last, ["Tone", "Style"]);
-
-          // Fallback: use column order if no headers match
-          const keysList = parsed.meta?.fields || Object.keys(last);
-          const nonEmptyKeys = keysList.filter(
-            (k) => last[k] && String(last[k]).trim() !== ""
-          );
-
-          const prompt =
-            promptKey && last[promptKey]
-              ? last[promptKey]
-              : nonEmptyKeys.length > 1
-              ? last[nonEmptyKeys[1]]
-              : "";
-
-          const response =
-            responseKey && last[responseKey]
-              ? last[responseKey]
-              : nonEmptyKeys.length > 1
-              ? last[nonEmptyKeys[nonEmptyKeys.length - 1]]
-              : "";
-
-          const tone = toneKey ? last[toneKey] : "";
-
-          // Update DOM
-          document.getElementById("prompt").textContent = safeFmt(prompt);
-          document.getElementById("response").textContent = safeFmt(response);
-          document.getElementById("tone").textContent = tone
-            ? `Tone: ${tone}`
-            : "";
-
-          const tsKey = findKey(last, ["Timestamp", "Time", "Submitted At"]);
-          if (tsKey && last[tsKey]) {
-            const d = new Date(last[tsKey]);
-            document.getElementById("time").textContent =
-              "Updated: " +
-              (isNaN(d) ? last[tsKey] : d.toLocaleString());
-          } else {
-            document.getElementById("time").textContent = "";
+          const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+          let rows = parsed.data || [];
+          if (rows.length === 0) {
+            listEl.innerHTML = "<div class='item'>No entries yet.</div>";
+            document.getElementById("count").textContent = "0 items";
+            status.textContent = "Updated: —";
+            return;
           }
-        } catch (err) {
-          console.error(err);
-          document.getElementById("prompt").textContent =
-            "Error fetching data";
-          document.getElementById("response").textContent = "";
-          document.getElementById("tone").textContent = "";
-          document.getElementById("time").textContent = "";
+
+          // Try to identify headers; use fallbacks otherwise
+          const fields = parsed.meta?.fields || Object.keys(rows[0]);
+
+          // Optionally limit and reverse (newest first)
+          let ordered = rows.slice();
+          if (SHOW_LAST_N && SHOW_LAST_N > 0) {
+            ordered = ordered.slice(-SHOW_LAST_N);
+          }
+          ordered.reverse();
+
+          // Clear and render
+          listEl.innerHTML = "";
+          let rendered = 0;
+
+          ordered.forEach(r => {
+            const promptKey   = findKey(r, ["Prompt", "Your Prompt", "Question", "Input"]);
+            const responseKey = findKey(r, ["Response", "Answer", "Output", "AI Response", "ChatGPT Response"]);
+            const toneKey     = findKey(r, ["Tone", "Style"]);
+            const tsKey       = findKey(r, ["Timestamp", "Time", "Submitted At", "Created"]);
+
+            // Fallbacks if headers aren't exact
+            const nonEmpty = (fields || Object.keys(r)).filter(k => r[k] && String(r[k]).trim() !== "");
+            const prompt   = promptKey && r[promptKey] ? r[promptKey] : (nonEmpty[1] ? r[nonEmpty[1]] : r[nonEmpty[0]] || "");
+            const response = responseKey && r[responseKey] ? r[responseKey] : (nonEmpty.length ? r[nonEmpty[nonEmpty.length - 1]] : "");
+            const tone     = toneKey ? r[toneKey] : "";
+            const time     = tsKey ? r[tsKey] : "";
+
+            // Skip empty rows (no prompt & no response)
+            if (!(String(prompt).trim() || String(response).trim())) return;
+
+            listEl.appendChild(makeItem({ prompt, response, tone, time: fmtTime(time) }));
+            rendered++;
+          });
+
+          document.getElementById("count").textContent = `${rendered} item${rendered === 1 ? "" : "s"}`;
+          status.textContent = "Updated: " + new Date().toLocaleTimeString();
+        } catch (e) {
+          console.error(e);
+          document.getElementById("status").textContent = "Error";
+          document.getElementById("list").innerHTML =
+            "<div class='item'>Error fetching or parsing the CSV. Check that the sheet is published as CSV and accessible.</div>";
         }
       }
 
+      // Initial load + refresh
       refresh();
       setInterval(refresh, 5000);
     </script>
