@@ -63,25 +63,25 @@
       </div>
       <div class="time" id="time"></div>
     </div>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
   // Your published CSV link:
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ42XwxVWPk57rtdQ963L3eWS2rh-rGQmbiLWEHdLTlAfcmGY2IelxfW8wX5Ux2ZQbZ0Al5zYXvzBiE/pub?gid=921597158&single=true&output=csv";
 
+  // Find a key in an object by matching any of the candidate names (case-insensitive)
   function findKey(obj, names) {
-    // case-insensitive lookup for any of the provided names
     const keys = Object.keys(obj);
-    for (const n of names) {
-      const k = keys.find(k => k.toLowerCase().trim() === n.toLowerCase().trim());
-      if (k) return k;
+    for (const name of names) {
+      const match = keys.find(k => k.toLowerCase().trim() === name.toLowerCase().trim());
+      if (match) return match;
     }
     return null;
   }
 
+  // Format text and preserve line breaks
   function safeFmt(val) {
     if (val == null) return "";
-    // show line breaks from the sheet nicely
-    return String(val).replace(/\r\n|\r|\n/g, " \n");
+    return String(val).replace(/\r\n|\r|\n/g, "\n");
   }
 
   async function refresh() {
@@ -89,48 +89,56 @@
       const res = await fetch(CSV_URL, { cache: "no-store" });
       const text = await res.text();
 
-      // Proper CSV parsing (handles quotes, commas, newlines in cells)
+      // Proper CSV parsing with headers
       const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
       const rows = parsed.data;
       if (!rows || rows.length === 0) return;
 
-      // Take the latest (last) row
+      // Use the last row in the sheet
       const last = rows[rows.length - 1];
 
-      // Try common header names; adjust if yours differ
-      const promptKey = findKey(last, ["Prompt", "Your Prompt", "Question", "Input"]);
-      const responseKey = findKey(last, ["Response", "Answer", "Output"]);
-      const toneKey = findKey(last, ["Tone", "Style"]);
+      // Find header names for prompt, response, tone
+      const promptKey   = findKey(last, ["Prompt", "Your Prompt", "Question", "Input"]);
+      const responseKey = findKey(last, ["Response", "Answer", "Output", "AI Response", "ChatGPT Response"]);
+      const toneKey     = findKey(last, ["Tone", "Style"]);
 
-      const prompt = promptKey ? last[promptKey] : "";
-      const response = responseKey ? last[responseKey] : "";
-      const tone = toneKey ? last[toneKey] : "";
+      // Fallback: compute column order
+      const keysList      = parsed.meta && parsed.meta.fields ? parsed.meta.fields : Object.keys(last);
+      const nonEmptyKeys  = keysList.filter(k => last[k] && String(last[k]).trim() !== "");
 
-      // Update UI
-      document.getElementById("prompt").textContent = safeFmt(prompt);
+      // Assign values: use header match if present, else fallback to second and last non-empty columns
+      const prompt  = promptKey   ? last[promptKey] : (nonEmptyKeys.length > 1 ? last[nonEmptyKeys[1]] : "");
+      const response = responseKey ? last[responseKey] : (nonEmptyKeys.length > 1 ? last[nonEmptyKeys[nonEmptyKeys.length - 1]] : "");
+      const tone    = toneKey     ? last[toneKey] : "";
+
+      // Update the HTML elements
+      document.getElementById("prompt").textContent  = safeFmt(prompt);
       document.getElementById("response").textContent = safeFmt(response);
-      document.getElementById("tone").textContent = tone ? `Tone: ${tone}` : "";
+      document.getElementById("tone").textContent    = tone ? `Tone: ${tone}` : "";
 
-      // Timestamp if present
+      // Optional: display timestamp if a column exists
       const tsKey = findKey(last, ["Timestamp", "Time", "Submitted At"]);
       if (tsKey && last[tsKey]) {
         const d = new Date(last[tsKey]);
-        document.getElementById("time").textContent = "Updated: " + (isNaN(d) ? last[tsKey] : d.toLocaleString());
+        document.getElementById("time").textContent =
+          "Updated: " + (isNaN(d) ? last[tsKey] : d.toLocaleString());
       } else {
         document.getElementById("time").textContent = "";
       }
-    } catch (e) {
-      console.error(e);
-      document.getElementById("prompt").textContent = "Error fetching data";
+    } catch (err) {
+      console.error(err);
+      document.getElementById("prompt").textContent  = "Error fetching data";
       document.getElementById("response").textContent = "";
-      document.getElementById("tone").textContent = "";
-      document.getElementById("time").textContent = "";
+      document.getElementById("tone").textContent    = "";
+      document.getElementById("time").textContent    = "";
     }
   }
 
+  // Initial call and auto-refresh
   refresh();
   setInterval(refresh, 5000);
 </script>
+
 
   </body>
 </html>
